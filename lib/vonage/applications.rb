@@ -71,13 +71,18 @@ module Vonage
     #
     # @param [Hash] params
     #
+    # @option auto_advance [Boolean]
+    #   Set this to `false` to not auto-advance through all the pages in the record
+    #   and collect all the data. The default is `true`.
+    #  
+    #
     # @return [ListResponse]
     #
     # @see https://developer.nexmo.com/api/application.v2#listApplication
     #
-    sig { params(params: T.nilable(T::Hash[Symbol, Integer])).returns(Vonage::Response) }
+    sig { params(params: T.nilable(T::Hash[Symbol, Integer])).returns(Vonage::Applications::ListResponse) }
     def list(params = nil)
-      request('/v2/applications', params: params, response_class: ListResponse)
+      request('/v2/applications', params: params, auto_advance: true, response_class: ListResponse)
     end
 
     # Get an application.

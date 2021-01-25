@@ -43,12 +43,17 @@ module Vonage
     #
     # @param [Hash] params
     #
+    # @option auto_advance [Boolean]
+    #   Set this to `false` to not auto-advance through all the pages in the record
+    #   and collect all the data. The default is `true`.
+    #  
+    #
     # @return [ListResponse]
     #
     # @see https://developer.nexmo.com/api/developer/numbers#getOwnedNumbers
     #
     def list(params = nil)
-      request('/account/numbers', params: params, response_class: ListResponse)
+      request('/account/numbers', params: params, auto_advance: true, response_class: ListResponse)
     end
 
     # Retrieve inbound numbers that are available for the specified country.
@@ -87,12 +92,17 @@ module Vonage
     #
     # @param [Hash] params
     #
+    # @option auto_advance [Boolean]
+    #   Set this to `true` to auto-advance through all the pages in the record
+    #   and collect all the data. The default is `false`.
+    #  
+    #
     # @return [ListResponse]
     #
     # @see https://developer.nexmo.com/api/developer/numbers#getAvailableNumbers
     #
     def search(params)
-      request('/number/search', params: params, response_class: ListResponse)
+      request('/number/search', params: params, auto_advance: false, response_class: ListResponse)
     end
 
     # Request to purchase a specific inbound number.

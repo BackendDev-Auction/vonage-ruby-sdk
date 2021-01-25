@@ -33,9 +33,11 @@ class Vonage::ApplicationsTest < Vonage::Test
   def test_list_method
     params = {page_size: 20}
 
-    stub_request(:get, applications_uri).with(request(query: params, headers: headers)).to_return(response)
+    stub_request(:get, applications_uri).with(request(query: params, headers: headers)).to_return(applications_response)
 
-    assert_kind_of Vonage::Applications::ListResponse, applications.list(params)
+    response = applications.list(params)
+
+    response.each{|resp| assert_kind_of Vonage::Applications::ListResponse, resp }
   end
 
   def test_get_method

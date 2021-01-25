@@ -34,7 +34,9 @@ class Vonage::ConversationsTest < Vonage::Test
 
     stub_request(:get, conversations_uri).with(request(query: params)).to_return(response)
 
-    assert_kind_of Vonage::Response, conversations.list(params)
+    response = conversations.list(params)
+
+    response.each{|resp| assert_kind_of Vonage::Response, resp }
   end
 
   def test_get_method

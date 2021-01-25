@@ -87,6 +87,10 @@ module Vonage
     # @option params [String] :conversation_uuid
     #   Return all the records associated with a specific conversation.
     #
+    # @option auto_advance [Boolean]
+    #   Set this to `false` to not auto-advance through all the pages in the record
+    #   and collect all the data. The default is `true`.
+    #
     # @param [Hash] params
     #
     # @return [ListResponse]
@@ -94,7 +98,7 @@ module Vonage
     # @see https://developer.nexmo.com/api/voice#getCalls
     #
     def list(params = nil)
-      request('/v1/calls', params: params, response_class: ListResponse)
+      request('/v1/calls', params: params, auto_advance: true, response_class: ListResponse)
     end
 
     # Get detail of a specific call.

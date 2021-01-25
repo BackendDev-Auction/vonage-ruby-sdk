@@ -38,12 +38,17 @@ module Vonage
     #     puts "#{item.created_at} #{item.id}"
     #   end
     #
+    # @option auto_advance [Boolean]
+    #   Set this to `false` to not auto-advance through all the pages in the record
+    #   and collect all the data. The default is `true`.
+    #  
+    #
     # @return [ListResponse]
     #
     # @see https://developer.nexmo.com/api/account#retrieveAPISecrets
     #
     def list
-      request('/accounts/' + account_id + '/secrets', response_class: ListResponse)
+      request('/accounts/' + account_id + '/secrets', auto_advance: true, response_class: ListResponse)
     end
 
     # Retrieve one API Secret.

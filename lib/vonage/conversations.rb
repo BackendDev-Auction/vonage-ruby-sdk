@@ -62,13 +62,18 @@ module Vonage
     #
     # @param [Hash, nil] params
     #
+    # @option auto_advance [Boolean]
+    #   Set this to `false` to not auto-advance through all the pages in the record
+    #   and collect all the data. The default is `true`.
+    #  
+    #
     # @return [Response]
     #
     # @see https://developer.nexmo.com/api/conversation#replaceConversation
     #
     sig { params(params: T.nilable(T::Hash[Symbol, T.untyped])).returns(Vonage::Response) }
     def list(params = nil)
-      request('/beta/conversations', params: params)
+      request('/beta/conversations', auto_advance: true, params: params)
     end
 
     # Retrieve a conversation.

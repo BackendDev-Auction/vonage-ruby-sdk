@@ -31,12 +31,17 @@ module Vonage
 
     # List users.
     #
+    # @option auto_advance [Boolean]
+    #   Set this to `false` to not auto-advance through all the pages in the record
+    #   and collect all the data. The default is `true`.
+    #  
+    #
     # @return [Response]
     #
     # @see https://developer.nexmo.com/api/conversation#getUsers
     #
     def list
-      request('/beta/users')
+      request('/beta/users', auto_advance: true)
     end
 
     # Retrieve a user.

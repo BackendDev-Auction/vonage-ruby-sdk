@@ -36,12 +36,16 @@ module Vonage
     #
     # @param [String] conversation_id
     #
+    # @option auto_advance [Boolean]
+    #   Set this to `false` to not auto-advance through all the pages in the record
+    #   and collect all the data. The default is `true`.
+    #    
     # @return [Response]
     #
     # @see https://developer.nexmo.com/api/conversation#getEvents
     #
     def list(conversation_id)
-      request('/beta/conversations/' + conversation_id + '/events')
+      request('/beta/conversations/' + conversation_id + '/events', auto_advance: true)
     end
 
     # Retrieve an event.
