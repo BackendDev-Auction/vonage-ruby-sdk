@@ -54,110 +54,96 @@ module Vonage
     Post = Net::HTTP::Post
     Delete = Net::HTTP::Delete
 
-    def request(path, params: nil, type: Get, auto_advance: false, response_class: Response, &block)
-      uri = URI('https://' + @host + path)
-
-      params ||= {}
-
+    def build_request(path:, type: Get, params: {})
       authentication = self.class.authentication.new(@config)
       authentication.update(params)
 
+      uri = URI('https://' + @host + path)
       unless type.const_get(:REQUEST_HAS_BODY) || params.empty?
         uri.query = Params.encode(params)
       end
 
+      # Set BasicAuth if neeeded
       authentication.update(uri)
 
-      message = type.new(uri)
+      # instantiate request
+      request = type.new(uri)
 
-      message['User-Agent'] = UserAgent.string(@config.app_name, @config.app_version)
-
+      # set headers
+      request['User-Agent'] = UserAgent.string(@config.app_name, @config.app_version)
       self.class.request_headers.each do |key, value|
-        message[key] = value
+        request[key] = value
       end
 
-      authentication.update(message)
+      # Set BearerToken if needed
+      authentication.update(request)
 
-      self.class.request_body.update(message, params) if type.const_get(:REQUEST_HAS_BODY)
+      # set body
+      self.class.request_body.update(request, params) if type.const_get(:REQUEST_HAS_BODY)
 
-      logger.log_request_info(message)
+      request
+    end
 
-      if auto_advance == true
-        iterable_request(path, params: params, request: message, response_class: response_class, &block)
+    def make_request!(request, &block)
+      logger.log_request_info(request)
+
+      response = @http.request(request, &block)
+
+      logger.log_response_info(response, @host)
+
+      return if block
+
+      logger.debug(response.body) if response.body
+
+      response
+    end
+
+    def request(path, params: nil, type: Get, auto_advance: false, response_class: Response, &block)
+      request = build_request(path: path, params: params || {}, type: type)
+
+      response = make_request!(request, &block)
+
+      if auto_advance
+        iterable_request(path, response: response, response_class: response_class, &block)
       else
-        response = @http.request(message, &block)
-
-        logger.log_response_info(response, @host)
-
         return if block
-
-        logger.debug(response.body) if response.body
 
         parse(response, response_class)
       end
     end
-    
-    def iterable_request(path, params: nil, request: nil, auto_advance: true, response_class: nil, &block)
-      first_response = @http.request(request, &block)
-      response_to_json = ::JSON.parse(first_response.body)
-      response = parse(first_response, response_class)
-      remainder = remaining_count(response_to_json)
+
+    def iterable_request(path, response: nil, response_class: nil, &block)
+      json_response = ::JSON.parse(response.body)
+      response = parse(response, response_class)
+      remainder = remaining_count(json_response)
 
       while remainder > 0
-        uri = URI('https://' + @host + path)
+        params = {}
 
-        params ||= {}
-  
-        if response_to_json['record_index'] && response_to_json['record_index'] == 0
-          params[:record_index] = response_to_json['page_size']
-        elsif response_to_json['record_index'] && response_to_json['record_index'] != 0
-          params[:record_index] = (response_to_json['record_index'] + response_to_json['page_size']) 
+        if json_response['record_index'] && json_response['record_index'] == 0
+          params[:record_index] = json_response['page_size']
+        elsif json_response['record_index'] && json_response['record_index'] != 0
+          params[:record_index] = (json_response['record_index'] + json_response['page_size'])
         end
 
-        if response_to_json['total_pages']
-          params[:page] = response_to_json['page'] + 1
+        if json_response['total_pages']
+          params[:page] = json_response['page'] + 1
         end
 
-        authentication = self.class.authentication.new(@config)
-        authentication.update(params)
-  
-        uri.query = Params.encode(params)
-  
-        authentication.update(uri)
-  
-        request = Get.new(uri)
-  
-        request['User-Agent'] = UserAgent.string(@config.app_name, @config.app_version)
-  
-        self.class.request_headers.each do |key, value|
-          request[key] = value
-        end
-  
-        authentication.update(request)
-  
-        logger.log_request_info(request)
+        request = build_request(path: path, type: Get, params: params)
 
-
-        request.uri.query = Params.encode(params)
-        http_response = @http.request(request, &block)
-        next_response = parse(http_response, response_class)
-        response_to_json = ::JSON.parse(http_response.body)
-        remainder = remaining_count(response_to_json)
+        # Make request...
+        paginated_response = make_request!(request)
+        next_response = parse(paginated_response, response_class)
+        json_response = ::JSON.parse(paginated_response.body)
+        remainder = remaining_count(json_response)
 
         if response.respond_to?('_embedded')
-          response['_embedded'][collection_name(response['_embedded'])].push(*next_response['_embedded'][collection_name(next_response['_embedded'])])
-        end
-
-        if !response.respond_to?('_embedded')
+          collection_name = collection_name(response['_embedded'])
+          response['_embedded'][collection_name].push(*next_response['_embedded'][collection_name])
+        else
           response[collection_name(response)].push(*next_response[collection_name(next_response)])
         end
-                  
-        logger.log_response_info(http_response, @host)
-
-        return if block
-        
-        logger.debug(http_response.body) if http_response.body
-
       end
 
       response
@@ -165,76 +151,45 @@ module Vonage
 
     def remaining_count(params)
       if params.key?('total_pages')
-        remaining_count = params['total_pages'] - params['page']
-        
-        return remaining_count
+        params['total_pages'] - params['page']
+      elsif params.key?('count')
+        params['count'] - (params['record_index'] == 0 ? params['page_size'] : (params['record_index'] + params['page_size']))
+      else
+        0
       end
-
-      if params.key?('count')
-        remaining_count = params['count'] - (params['record_index'] == 0 ? params['page_size'] : (params['record_index'] + params['page_size']))
-
-        return remaining_count
-      end
-
-      0
     end
 
     def collection_name(params)
-      @collection_name ||= begin
-        if params.respond_to?('calls')
-          return 'calls'
+      @collection_name ||= case
+        when params.respond_to?('calls')
+          'calls'
+        when params.respond_to?('users')
+          'users'
+        when params.respond_to?('legs')
+          'legs'
+        when params.respond_to?('data')
+          'data'
+        when params.respond_to?('conversations')
+          'conversations'
+        when params.respond_to?('applications')
+          'applications'
+        when params.respond_to?('records')
+          'records'
+        when params.respond_to?('reports')
+          'reports'
+        when params.respond_to?('networks')
+          'networks'
+        when params.respond_to?('countries')
+          'countries'
+        when params.respond_to?('media')
+          'media'
+        when params.respond_to?('numbers')
+          'numbers'
+        when params.respond_to?('events')
+          'events'
+        else
+          params.entity.attributes.keys[0].to_s
         end
-
-        if params.respond_to?('users')
-          return 'users'
-        end
-
-        if params.respond_to?('legs')
-          return 'legs'
-        end
-
-        if params.respond_to?('data')
-          return 'data'
-        end
-
-        if params.respond_to?('conversations')
-          return 'conversations'
-        end
-
-        if params.respond_to?('applications')
-          return 'applications'
-        end
-
-        if params.respond_to?('records')
-          return 'records'
-        end
-
-        if params.respond_to?('reports')
-          return 'reports'
-        end
-
-        if params.respond_to?('networks')
-          return 'networks'
-        end
-
-        if params.respond_to?('countries')
-          return 'countries'
-        end
-
-        if params.respond_to?('media')
-          return 'media'
-        end
-
-        if params.respond_to?('numbers')
-          return 'numbers'
-        end
-
-        if params.respond_to?('events')
-          return 'events'
-        end
-
-        params.entity.attributes.keys[0].to_s
-      end
     end
 
     def parse(response, response_class)
